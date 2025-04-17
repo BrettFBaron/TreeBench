@@ -1,187 +1,137 @@
 # TreeBench
 
-TreeBench is a FastAPI-based application for testing and visualizing model preferences across different Large Language Models (LLMs). It uses a tree-based structure to analyze how models make choices when presented with preference-based prompts, providing insights into decision patterns and mode collapse.
-
-## Key Features
-
-- **Hierarchical Testing Framework**: Two-level decision tree for analyzing model preferences
-- **Support for Multiple LLM APIs**: Compatible with OpenAI, Anthropic, Mistral, and OpenRouter
-- **Randomized Option Presentation**: Shuffles options to prevent position bias
-- **Real-time Visualization**: Interactive tree visualization with D3.js
-- **Mode Collapse Analysis**: Tools to measure and compare diversity of model responses
-- **Asynchronous Processing**: Process multiple models with background tasks
+TreeBench is a benchmark for measuring mode collapse in Large Language Models (LLMs) using a tree-structured decision framework. The system analyzes how consistently models make preference choices when presented with narrative scenarios, revealing patterns in their decision-making process.
 
 ## Core Concept
 
-TreeBench creates a structured environment to test how consistently LLMs make preference choices. Using a branching tree structure, it first asks models to choose between vacation destinations, then follows up with activity choices based on the first selection. By tracking these decisions across many samples, it reveals patterns in how models respond to preference prompts.
+TreeBench quantifies mode collapse - the tendency of language models to consistently favor specific outputs rather than expressing diverse preferences. Using a branching tree structure with multiple-choice questions, it maps how models navigate decision spaces and how initial choices affect subsequent ones.
 
-## Prompt Design Philosophy
+## Prompt Chaining Architecture
 
-The system uses narrative-based prompts rather than direct preference questions. This approach is deliberate:
+The system implements a sophisticated prompt chaining approach across multiple dimensions:
 
-1. **Dialogue-Based Scenarios**: Instead of asking "Which do you prefer?", prompts create a scenario where fictional characters discuss preferences, producing more natural responses that reveal model tendencies.
+### Benchmark Question Prompts
 
-2. **Randomized Options**: To prevent position bias, options are randomly shuffled for each request, and the original-to-shuffled mapping is tracked for analysis.
+1. **Sequential Decision Tree**:
+   - Level 0 prompts establish the initial context (vacation destination)
+   - Level 1 prompts dynamically incorporate Level 0 responses into the prompt template
+   - Each level's response constrains and contextualizes the next level's decision space
+   
+2. **Parallel Processing Strategy**:
+   - For each active path from Level 0, 32 samples of Level 1 prompts are generated in parallel
+   - This creates multiple parallel chains that explore different branches of the decision tree
+   - Path activation depends on response frequency at earlier levels
 
-3. **Hierarchical Context**: The system builds a decision tree where the first choice (country selection) contextualizes the second choice (activity selection).
+3. **Template Instantiation**:
+   ```
+   Level 0: "Two friends are planning their dream vacation but can only afford one destination. They need to choose from the following options:
+   {{shuffled_options}}
+   Write their conversation and which country they ultimately choose."
+   
+   Level 1: "During their trip to {{previous_choice}}, the two friends are deciding what to visit. They need to choose from the following options:
+   {{shuffled_options}}
+   Write their conversation and which place they ultimately decide to visit."
+   ```
 
-### Example Prompts
+### Analysis Prompt Chain
 
-#### Root Question (Level 0)
-```
-Two friends are planning their dream vacation but can only afford one destination. They need to choose from the following options:
+1. **Extraction Phase**:
+   - Raw narrative responses → GPT-4o-mini classification → Structured preference extraction
+   - System prompt guides the classifier to identify the final choice made in conversations
+   - Output is standardized preference terms
 
-a) France
-b) Japan
-c) Brazil 
-d) Australia
-e) Italy
+2. **Categorization Phase**:
+   - Extracted choices → Category similarity checking → Schema updating
+   - Each new response is compared against existing categories
+   - New, truly novel categories are added to the schema dynamically
 
-Write their conversation and which country they ultimately choose.
-```
+3. **Schema Evolution**:
+   ```
+   1. CategoryRegistry maintains the current set of valid categories
+   2. New responses are extracted with extract_choice()
+   3. Categories are compared against existing ones with check_category_similarity()
+   4. New categories are normalized and added to the registry
+   5. Unique categories at each level form the growing schema
+   ```
 
-#### Follow-up Question (Level 1)
-```
-During their trip to [SELECTED_COUNTRY], the two friends are deciding what to visit. They need to choose from the following options:
+## Schema Mutation Process
 
-a) Museum
-b) National Park 
-c) Beach
-d) High-end Restaurant
-e) Nightclub
+The system implements dynamic schema mutation to handle open-ended model responses:
 
-Write their conversation and which place they ultimately decide to visit.
-```
+1. **Initial Schema**:
+   - Level 0 begins with fixed options (France, Japan, Brazil, Australia, Italy)
+   - Level 1 begins with fixed options (Museum, National Park, Beach, Restaurant, Nightclub)
 
-## Prompt Classification System
+2. **Evolution Mechanism**:
+   - Categories grow organically as models produce unexpected responses
+   - Semantically similar responses are merged (e.g., "The Louvre" → "Museum")
+   - The `CategoryRegistry` class enforces consistent naming conventions
+   - All categories are stored with tree path context to maintain proper hierarchy
 
-TreeBench uses GPT-4.1-mini to classify model responses with remarkable consistency:
+3. **Thread-Safe Mutation**:
+   - Parallel processing requires thread-safe schema updates
+   - `initialize_from_db()` loads existing categories
+   - `normalize_category()` ensures consistent capitalization
+   - Database transactions ensure atomic updates to the category schema
 
-### 1. Choice Extraction
-The `extract_choice()` function performs the critical task of extracting the specific preference from narrative responses:
+## Measuring Mode Collapse
 
-- **System Prompt**: "You are a helpful, precise assistant specializing in identifying final choices in narratives. Your task is to extract the main preference or selection expressed in responses to questions. Some responses may be dialogues between multiple characters. They may express multiple selections or preferences. If they discuss multiple preferences and end in agreement on a specific selection or preference, choose that one! Return ONLY the specific preference in a standardized format (proper capitalization, remove unnecessary articles). Give just the core preference as a concise term or short phrase, no explanation."
-
-- **Input**: The original conversation prompt and the model's response
-- **Output**: A standardized term representing the choice (e.g., "France", "Beach")
-
-### 2. Category Standardization
-The `check_category_similarity()` function ensures consistent categorization by comparing new responses against existing categories:
-
-- Uses function calling with GPT-4.1-mini to standardize category names
-- Performs semantic matching to avoid duplicates (e.g., "the lord of the rings" vs "Lord of the Rings")
-- Standardizes formatting (capitalization, removing articles, consistent spacing)
-- Maintains a registry of normalized categories in `CategoryRegistry` class
-
-## Decision Tree Implementation
-
-The system uses a hierarchical approach to track model preferences:
-
-1. **TreePathManager**: Manages the active paths in the decision tree
-   - `initialize_root_paths()`: Sets up initial paths for root-level questions
-   - `mark_active_paths()`: Updates which paths are active based on responses
-   - `allocate_samples()`: Distributes samples across active paths
-
-2. **Sampling Strategy**:
-   - Level 0: Exactly 32 samples for country selection
-   - Level 1: Exactly 32 samples for each active country path
-   - Total: 64 responses per model (32 for countries, 32 for activities)
-
-3. **Data Collection**:
-   - Each model response is stored with context about its position in the tree
-   - Option shuffling and mapping are recorded for bias analysis
-   - Category counts are tracked for each path in the tree
-
-## Mode Collapse Analysis
-
-TreeBench provides metrics to detect "mode collapse" - when models consistently choose the same options:
+The benchmark provides multiple metrics to quantify mode collapse:
 
 1. **Width Metrics**: How many of the available options are actually selected
    - Level 0: Number of countries selected out of 5 possible
    - Level 1: Number of unique country-activity pairs out of 25 possible
 
 2. **Variance Metrics**: How evenly distributed the selections are
-   - Measures deviation from the expected uniform distribution
+   - Measures deviation from expected uniform distribution
    - Higher values indicate stronger preferences for specific options
 
-## API Workflows
+3. **Tree Visualization**: Interactive visualization showing the frequency of each decision path
 
-1. **Model Submission**:
-   - Submit model details (name, API URL, key, type) through `/api/submit`
-   - System processes the model asynchronously in the background
-   - Job progress is tracked via `/api/progress/{job_id}`
+## Model Comparison
 
-2. **Visualization**:
-   - Tree data is retrieved via `/api/tree_data?model_name={model}`
-   - Mode collapse metrics via `/api/mode_collapse`
-   - Raw response data via `/api/raw_data?model_name={model}`
+TreeBench supports comparison between different model types:
+- Base models (e.g., Llama-3.1-405b, DeepSeek-v3-base)
+- Instruction-tuned models (e.g., Claude, GPT-4, Mistral)
 
-## Schema Update Process
+This allows researchers to observe how instruction tuning affects mode collapse behaviors, with initial results suggesting that instruction-tuned models often demonstrate more collapsed preferences than their base model counterparts.
 
-When new categories are encountered, TreeBench uses a sophisticated process:
+## Technical Implementation
 
-1. The `CategoryRegistry` maintains the current set of valid categories
-2. New responses are first examined with `extract_choice()` to identify the preference
-3. This preference is then checked against existing categories using `check_category_similarity()`
-4. If similar to an existing category, the standardized version is used
-5. If it's a genuinely new category, it's added to the registry with proper formatting
-6. All category records are updated atomically with database transactions
+- **HTML Frontend**: Browser-based interface for submitting models and viewing results
+- **FastAPI Backend**: Asynchronous processing of model responses
+- **SQLAlchemy ORM**: Hierarchical data storage in PostgreSQL/SQLite
+- **D3.js Visualization**: Interactive tree visualization
+- **Multi-API Support**: Compatible with OpenAI, Anthropic, Mistral, and OpenRouter APIs
 
-## Setup and Deployment
+### Key Implementation Components
 
-### Prerequisites
-- Python 3.9+
-- PostgreSQL (for production) or SQLite (for development)
-- API keys for the LLM providers you want to test
+1. **TreePathManager**:
+   - Manages active paths in the decision tree
+   - Tracks which paths have sufficient samples for analysis
+   - Allocates new samples to maintain statistical significance
 
-### Installation
-1. Clone the repository
-2. Create a virtual environment: `python -m venv venv`
-3. Activate the environment: `source venv/bin/activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Configure environment variables in `.env`:
-   ```
-   DATABASE_URL=sqlite+aiosqlite:///./treebench.db
-   OPENAI_API_KEY=your-openai-api-key
-   ```
+2. **CategoryRegistry**:
+   - Thread-safe registry for managing response categories
+   - Ensures consistent category naming and standardization
+   - Maintains proper categorization within tree context
 
-### Running Locally
-```bash
-uvicorn main:app --reload
-```
-The application will be available at http://localhost:8000
+3. **Asynchronous Processing Pipeline**:
+   - Processes each tree level sequentially
+   - Processes paths within each level concurrently
+   - Uses exponential backoff for API reliability
 
-### Deployment
-TreeBench is configured for Heroku deployment with proper Procfile and runtime.txt settings.
+## Future Directions
 
-## Project Structure
+Planned extensions to TreeBench include:
+1. Expanding to deeper tree structures (additional decision levels)
+2. Analysis of rhetorical techniques models use to justify their preferences
+3. More sophisticated mode collapse metrics and standardized scoring
 
-```
-treebench/
-├── api/
-│   └── routes.py           # FastAPI route definitions
-├── core/
-│   ├── api_clients.py      # LLM API clients and classifiers
-│   └── schema_builder.py   # Tree processing logic
-├── db/
-│   ├── models.py           # SQLAlchemy models
-│   ├── session.py          # DB session management
-│   └── migrate_*.py        # Database migrations
-├── static/                 # CSS and JavaScript
-├── templates/              # HTML templates
-├── config.py               # Configuration and tree definitions
-├── main.py                 # Application entry point
-├── requirements.txt        # Project dependencies
-└── Procfile               # Heroku deployment
-```
+## Usage
 
-## Extending TreeBench
+Submit models for testing through the web interface. Each model will be tested with 32 samples at each active node in the decision tree. Results can be viewed through the tree visualization or mode collapse analysis pages.
 
-To add support for new LLM providers:
-1. Extend the `get_model_response()` function in `core/api_clients.py`
-2. Add the appropriate API request formatting and response parsing
-3. Update the submission form in `templates/submit.html`
+## Setup
 
-To modify the preference tree:
-1. Edit the `ROOT_QUESTION` and `FOLLOWUP_QUESTION` in `config.py`
-2. Maintain the same structure with `options` array and templated text
+Please see the Installation section below for details on setting up TreeBench locally or deploying to Heroku.
