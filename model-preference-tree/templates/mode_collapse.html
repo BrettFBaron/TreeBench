@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Mode Collapse Analysis - Model Preference Testing{% endblock %}
+
+{% block content %}
+
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="mb-0" id="selectedModelTitle">Mode Collapse Metrics</h3>
+                <div class="btn-toolbar">
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" type="button" id="modelDropdown" data-bs-toggle="dropdown">
+                            Select Model
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="modelList">
+                            <!-- Will be populated by JavaScript -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="detailed-metrics-container">
+                    <!-- Content will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let modeCollapseData;
+    
+    // Function to load mode collapse data
+    function loadModeCollapseData() {
+        console.log('Fetching mode collapse data');
+        fetch('/api/mode_collapse')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Mode collapse data received:', data);
+                modeCollapseData = data;
+                renderCharts();
+            })
+            .catch(error => {
+                console.error('Error loading mode collapse data:', error);
+                document.querySelectorAll('.chart-container').forEach(container => {
+                    container.innerHTML = 
+                        `<div class="alert alert-danger">Error loading mode collapse data: ${error.message}. Please try again.</div>`;
+                });
+            });
+    }
+    
+    // Function to initialize the page
+    function renderCharts() {
+        if (!modeCollapseData || !modeCollapseData.models || modeCollapseData.models.length === 0) {
+            const noDataMessage = `
+                <div class="alert alert-info">
+                    <h4>No Model Data Available Yet</h4>
+                    <p>This page will show mode collapse analysis once models have been tested.</p>
+                    <p>To add model data, go to the <a href="/submit" class="alert-link">Test New Model</a> page and complete a test run.</p>
+                </div>`;
+                
+            document.getElementById('detailed-metrics-container').innerHTML = noDataMessage;
+            return;
+        }
+        
+        // Get models array and populate model dropdown
+        const models = modeCollapseData.models;
+        populateModelDropdown(models);
+        
+        // Automatically display the first model's data
+        if (models.length > 0) {
+            displayDetailedMetrics(models[0]);
+            // Update the dropdown button text
+            document.getElementById('modelDropdown').textContent = models[0];
+            // Update the title to include the model name
+            document.getElementById('selectedModelTitle').textContent = `Mode Collapse Metrics: ${models[0]}`;
+        }
+    }
+    
+    
+    // Populate the model dropdown menu
+    function populateModelDropdown(models) {
+        const modelList = document.getElementById('modelList');
+        modelList.innerHTML = '';
+        
+        models.forEach(model => {
+            const listItem = document.createElement('li');
+            const anchor = document.createElement('a');
+            anchor.classList.add('dropdown-item');
+            anchor.href = '#';
+            anchor.textContent = model;
+            
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                displayDetailedMetrics(model);
+                document.getElementById('modelDropdown').textContent = model;
+                document.getElementById('selectedModelTitle').textContent = `Mode Collapse Metrics: ${model}`;
+            });
+            
+            listItem.appendChild(anchor);
+            modelList.appendChild(listItem);
+        });
+    }
+    
+    // Display detailed metrics for a selected model
+    function displayDetailedMetrics(modelName) {
+        // Get detailed metrics for this model
+        const detailedMetrics = modeCollapseData.detailed_metrics[modelName];
+        
+        if (!detailedMetrics) {
+            document.getElementById('detailed-metrics-container').innerHTML = 
+                `<div class="alert alert-warning">No detailed metrics available for ${modelName}.</div>`;
+            return;
+        }
+        
+        // Get parent-specific metrics available
+        const parents = Object.keys(detailedMetrics.variance)
+            .filter(key => key !== "root" && key !== "level_1_avg")
+            .sort();
+        
+        // Create tables for detailed metrics
+        let html = `
+            
+            <div class="table-responsive">
+                <h5 class="mb-3">Tree Width Analysis</h5>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <strong>Level 0: Country Selection</strong>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th>Active Options</th>
+                                        <td>${detailedMetrics.width.level_0.active_options} / ${detailedMetrics.width.level_0.total_options}</td>
+                                        <td><small>Unique countries selected</small></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Width Ratio</th>
+                                        <td>${(detailedMetrics.width.level_0.width_ratio * 100).toFixed(1)}%</td>
+                                        <td><small>Percentage of available options used</small></td>
+                                    </tr>
+                                </table>
+                                <p class="small text-muted">How the model selects between different countries</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <strong>Level 1: Terminal Paths (Country-Activity Pairs)</strong>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th>Active Paths</th>
+                                        <td>${detailedMetrics.width.level_1.active_options} / ${detailedMetrics.width.level_1.total_options}</td>
+                                        <td><small>Unique country-activity combinations</small></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Width Ratio</th>
+                                        <td>${(detailedMetrics.width.level_1.width_ratio * 100).toFixed(1)}%</td>
+                                        <td><small>Percentage of available paths used</small></td>
+                                    </tr>
+                                </table>
+                                <p class="small text-muted">Total unique paths through the decision tree</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5 class="mb-3">Parent Node Analysis - Distribution of Activities by Country</h5>
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+        `;
+        
+        // Add detailed cards for each parent country
+        if (parents.length > 0 && detailedMetrics.parent_nodes) {
+            parents.forEach(parentName => {
+                const variance = detailedMetrics.variance[parentName] || 0;
+                const nodeData = detailedMetrics.parent_nodes[parentName] || {};
+                
+                if (!nodeData || !nodeData.distribution) {
+                    return; // Skip if no detailed data
+                }
+                
+                // Prepare distribution data
+                const categories = nodeData.categories || [];
+                const distribution = nodeData.distribution || {};
+                const frequencies = nodeData.frequencies || {};
+                
+                let distributionHtml = '';
+                categories.forEach(category => {
+                    const count = distribution[category] || 0;
+                    const freq = frequencies[category] || 0;
+                    const freqPercent = (freq * 100).toFixed(1);
+                    
+                    distributionHtml += `
+                        <tr>
+                            <td>${category}</td>
+                            <td>${count}</td>
+                            <td>${freqPercent}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                    <div class="col">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <strong>${parentName}</strong>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <strong>Active Paths:</strong> ${nodeData.active_paths}/5
+                                    </div>
+                                    <div>
+                                        <strong>Total Samples:</strong> ${nodeData.total_samples}
+                                    </div>
+                                </div>
+                                
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Activity</th>
+                                            <th>Count</th>
+                                            <th>Frequency</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${distributionHtml}
+                                    </tbody>
+                                </table>
+                                <p class="small text-muted">Distribution of activities when ${parentName} is chosen</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                </div>
+            </div>
+            
+        `;
+        
+        document.getElementById('detailed-metrics-container').innerHTML = html;
+    }
+    
+    // Handle theme changes to update charts
+    function handleThemeChange() {
+        renderCharts();
+    }
+    
+    // Register theme change handler
+    if (window.ThemeManager) {
+        window.ThemeManager.onThemeChange(handleThemeChange);
+    }
+    
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadModeCollapseData();
+    });
+</script>
+{% endblock %}

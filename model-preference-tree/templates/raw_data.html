@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+
+{% block title %}Raw Data - {{ model_name }} - Model Preference Testing{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <!-- Breadcrumb navigation removed -->
+        
+        <h1 class="mb-3" style="font-family: 'Berkeley Mono', monospace;">Model: {{ model_name }}</h1>
+        <p class="lead" style="font-family: 'Berkeley Mono', monospace;">View raw response data from this model.</p>
+        
+        <div class="d-flex gap-2 mb-4">
+            <button id="export-json-btn" class="btn btn-outline-primary" style="font-family: 'Berkeley Mono', monospace;">Export JSON</button>
+            <a href="/flagged_responses?model_name={{ model_name | urlencode }}" class="btn btn-outline-warning" style="font-family: 'Berkeley Mono', monospace;">View Flagged Responses</a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary" style="font-family: 'Berkeley Mono', monospace;">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<div id="loading-indicator" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2" style="font-family: 'Berkeley Mono', monospace;">Loading raw data...</p>
+</div>
+
+<div id="raw-data-container" style="display: none;">
+    <!-- Questions will be rendered here -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const modelName = "{{ model_name }}";
+    let modelData;
+    
+    // Function to load raw data
+    function loadRawData() {
+        fetch(`/api/raw_data?model_name=${encodeURIComponent(modelName)}`)
+            .then(response => response.json())
+            .then(data => {
+                modelData = data;
+                renderRawData();
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('raw-data-container').style.display = 'block';
+                
+                // Add event listeners to flag buttons after rendering
+                addFlagButtonListeners();
+            })
+            .catch(error => {
+                console.error('Error loading data:', error);
+                // Get current theme
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const isDarkMode = currentTheme === 'dark';
+                
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('raw-data-container').innerHTML = 
+                    `<div class="alert alert-danger" style="background-color: var(--card-bg); color: var(--text-color); border-left: 4px solid var(--danger-color);">Error loading raw data. Please try again.</div>`;
+                document.getElementById('raw-data-container').style.display = 'block';
+            });
+    }
+    
+    // Function to add event listeners to the flag buttons
+    function addFlagButtonListeners() {
+        document.querySelectorAll('.flag-response-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const responseId = this.getAttribute('data-response-id');
+                const currentCategory = this.getAttribute('data-current-category');
+                showFlagModal(responseId, currentCategory);
+            });
+        });
+    }
+    
+    // Function to show the flag modal
+    function showFlagModal(responseId, currentCategory) {
+        // Check if modal already exists, remove if it does
+        const existingModal = document.getElementById('flagResponseModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Get current theme for styling the modal
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const isDarkMode = currentTheme === 'dark';
+        
+        // Create modal HTML with proper theme styling
+        const modalHTML = `
+            <div class="modal fade themed-modal" id="flagResponseModal" tabindex="-1" aria-labelledby="flagResponseModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                        <div class="modal-header" style="border-bottom: 1px solid var(--border-color); background-color: var(--card-header-bg);">
+                            <h5 class="modal-title" id="flagResponseModalLabel" style="font-family: 'Berkeley Mono', monospace; color: var(--text-color);">Flag Incorrect Classification</h5>
+                            <button type="button" class="btn-close ${isDarkMode ? 'btn-close-white' : ''}" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body" style="background-color: var(--card-bg);">
+                            <p style="font-family: 'Berkeley Mono', monospace; color: var(--text-color);">
+                                Current classification: <span class="badge ${currentCategory === 'refusal' ? 'bg-danger' : 
+                                              currentCategory === 'soft_refusal' ? 'bg-warning' : 
+                                              currentCategory === 'hedged_preference' ? 'bg-info' : 'bg-primary'}">${currentCategory}</span>
+                            </p>
+                            <p style="font-family: 'Berkeley Mono', monospace; color: var(--text-color);">Select the correct classification:</p>
+                            <select id="corrected-category" class="form-select mb-3" style="font-family: 'Berkeley Mono', monospace; background-color: var(--form-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                                <option value="refusal">refusal</option>
+                                <option value="soft_refusal">soft_refusal</option>
+                                <option value="hedged_preference">hedged_preference</option>
+                                <option value="direct_preference">direct_preference</option>
+                            </select>
+                        </div>
+                        <div class="modal-footer" style="border-top: 1px solid var(--border-color); background-color: var(--card-bg);">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="font-family: 'Berkeley Mono', monospace;">Cancel</button>
+                            <button type="button" id="submit-flag-btn" class="btn btn-warning" style="font-family: 'Berkeley Mono', monospace;">Submit Flag</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to document
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Initialize Bootstrap modal
+        const modal = new bootstrap.Modal(document.getElementById('flagResponseModal'));
+        modal.show();
+        
+        // Add event listener to submit button
+        document.getElementById('submit-flag-btn').addEventListener('click', function() {
+            const correctedCategory = document.getElementById('corrected-category').value;
+            submitFlag(responseId, correctedCategory, modal);
+        });
+    }
+    
+    // Function to submit flag
+    function submitFlag(responseId, correctedCategory, modal) {
+        // Get current theme for styling notifications
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const isDarkMode = currentTheme === 'dark';
+        
+        fetch(`/api/flag_response/${responseId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                corrected_category: correctedCategory
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal
+                modal.hide();
+                
+                // Show success notification
+                const notification = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="font-family: 'Berkeley Mono', monospace; background-color: var(--card-bg); color: var(--text-color); border-left: 4px solid var(--primary-color);">
+                        Response flagged successfully and category counts updated.
+                        <button type="button" class="btn-close ${isDarkMode ? 'btn-close-white' : ''}" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                document.getElementById('raw-data-container').insertAdjacentHTML('beforebegin', notification);
+                
+                // Reload data after a short delay to reflect changes
+                setTimeout(() => {
+                    loadRawData();
+                }, 1500);
+            } else {
+                console.error('Error flagging response:', data);
+                // Create themed error notification
+                const errorNotification = `
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="font-family: 'Berkeley Mono', monospace; background-color: var(--card-bg); color: var(--text-color); border-left: 4px solid var(--danger-color);">
+                        Error flagging response. Please try again.
+                        <button type="button" class="btn-close ${isDarkMode ? 'btn-close-white' : ''}" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+                document.getElementById('raw-data-container').insertAdjacentHTML('beforebegin', errorNotification);
+            }
+        })
+        .catch(error => {
+            console.error('Error submitting flag:', error);
+            // Create themed error notification
+            const errorNotification = `
+                <div class="alert alert-danger alert-dismissible fade show" role="alert" style="font-family: 'Berkeley Mono', monospace; background-color: var(--card-bg); color: var(--text-color); border-left: 4px solid var(--danger-color);">
+                    Error submitting flag. Please try again.
+                    <button type="button" class="btn-close ${isDarkMode ? 'btn-close-white' : ''}" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+            document.getElementById('raw-data-container').insertAdjacentHTML('beforebegin', errorNotification);
+        });
+    }
+    
+    // Function to render raw data
+    function renderRawData() {
+        // Get current theme
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const isDarkMode = currentTheme === 'dark';
+        
+        if (!modelData || !modelData.questions) {
+            document.getElementById('raw-data-container').innerHTML = 
+                `<div class="alert alert-warning" style="background-color: var(--card-bg); color: var(--text-color); border-left: 4px solid #FFA500;">No data available for this model.</div>`;
+            return;
+        }
+        
+        const container = document.getElementById('raw-data-container');
+        let html = '';
+        
+        // Add model metadata
+        html += `
+            <div class="card mb-5">
+                <div class="card-header">
+                    <h4 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">Model Details</h4>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Model Name</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">${modelData.model_name}</dd>
+                        
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Status</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">
+                            <span class="badge ${modelData.job_status === 'completed' ? 'bg-success' : 
+                                              modelData.job_status === 'verified' ? 'bg-success' : 
+                                              modelData.job_status === 'verifying' ? 'bg-info' : 
+                                              modelData.job_status === 'failed' ? 'bg-danger' : 'bg-warning'}" 
+                                  style="font-family: 'Berkeley Mono', monospace;">
+                                ${modelData.job_status}
+                                ${modelData.job_status === 'verified' ? ' <i class="bi bi-check-circle"></i>' : ''}
+                                ${modelData.job_status === 'verifying' ? ' <i class="bi bi-arrow-repeat"></i>' : ''}
+                            </span>
+                        </dd>
+                        
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Started</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">
+                            ${modelData.started_at ? new Date(modelData.started_at).toLocaleString() : 'N/A'}
+                        </dd>
+                        
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Completed</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">
+                            ${modelData.completed_at ? new Date(modelData.completed_at).toLocaleString() : 'N/A'}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        `;
+        
+        // Add each question's data
+        for (const [questionId, questionData] of Object.entries(modelData.questions)) {
+            html += `
+                <div class="card mb-5">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">
+                            ${questionId === 'question_root' ? 'Root Question (Level 0)' : 
+                              questionId === 'question_followup' ? 'Follow-up Question (Level 1)' : 
+                              questionId.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase())}
+                        </h4>
+                        <a href="/results/${questionId}" class="btn btn-sm btn-primary" style="font-family: 'Berkeley Mono', monospace;">View Results</a>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3" style="font-family: 'Berkeley Mono', monospace;">${questionData.question_text}</p>
+                        
+                        <h5 style="font-family: 'Berkeley Mono', monospace;">Responses</h5>
+                        <div class="accordion" id="accordion-${questionId}">
+            `;
+            
+            // Group responses by tree level, parent path, and category
+            const responsesByCategory = {};
+            questionData.responses.forEach(response => {
+                // Create a composite key for grouping: level_parentPath_category
+                const treeLevel = response.tree_level || 0;
+                const parentPath = response.parent_path || 'root';
+                let groupKey = response.category;
+                
+                // For follow-up questions, add tree level and parent path to category
+                if (treeLevel > 0) {
+                    groupKey = `L${treeLevel} ${parentPath} → ${response.category}`;
+                }
+                
+                if (!responsesByCategory[groupKey]) {
+                    responsesByCategory[groupKey] = [];
+                }
+                responsesByCategory[groupKey].push(response);
+            });
+            
+            // Add each category and its responses
+            let categoryIndex = 0;
+            for (const [category, responses] of Object.entries(responsesByCategory)) {
+                categoryIndex++;
+                const categoryId = `${questionId}-category-${categoryIndex}`;
+                
+                html += `
+                    <div class="accordion-item" style="background-color: var(--card-bg); border: 1px solid var(--border-color);">
+                        <h2 class="accordion-header" id="heading-${categoryId}">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#collapse-${categoryId}" 
+                                    aria-expanded="false" aria-controls="collapse-${categoryId}"
+                                    style="font-family: 'Berkeley Mono', monospace; background-color: var(--card-header-bg); color: var(--text-color);">
+                                <span class="badge ${category === 'refusal' ? 'bg-danger' : 'bg-primary'} me-2" 
+                                      style="font-family: 'Berkeley Mono', monospace;">
+                                    ${responses.length}
+                                </span>
+                                ${category}
+                            </button>
+                        </h2>
+                        <div id="collapse-${categoryId}" class="accordion-collapse collapse"
+                             aria-labelledby="heading-${categoryId}" data-bs-parent="#accordion-${questionId}">
+                            <div class="accordion-body" style="background-color: var(--card-bg); color: var(--text-color);">
+                                <div class="list-group">
+                `;
+                
+                // Add each response in this category
+                responses.forEach(response => {
+                    html += `
+                        <div class="list-group-item" style="background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color);">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    ${response.is_flagged ? `
+                                        <div class="d-flex flex-column">
+                                            <div class="mb-1">
+                                                <span class="badge bg-secondary text-decoration-line-through" 
+                                                    style="font-family: 'Berkeley Mono', monospace;">
+                                                    ${response.category}
+                                                </span>
+                                                <i class="bi bi-arrow-right mx-1"></i>
+                                                <span class="badge ${response.corrected_category === 'refusal' ? 'bg-danger' : 
+                                                                  response.corrected_category === 'soft_refusal' ? 'bg-warning' : 
+                                                                  response.corrected_category === 'hedged_preference' ? 'bg-info' : 'bg-primary'}" 
+                                                    style="font-family: 'Berkeley Mono', monospace;">
+                                                    ${response.corrected_category}
+                                                </span>
+                                                <span class="badge bg-info ms-1" title="Verified by Gemini">
+                                                    <i class="bi bi-check-circle"></i> Verified
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ` : `
+                                        <span class="badge ${response.category === 'refusal' ? 'bg-danger' : 
+                                                          response.category === 'soft_refusal' ? 'bg-warning' : 
+                                                          response.category === 'hedged_preference' ? 'bg-info' : 'bg-primary'}" 
+                                            style="font-family: 'Berkeley Mono', monospace;">
+                                            ${response.category}
+                                        </span>
+                                    `}
+                                    ${response.tree_level > 0 ? `
+                                        <span class="badge bg-secondary ms-1" title="Tree Level">
+                                            L${response.tree_level}
+                                        </span>
+                                        <span class="badge bg-dark ms-1" title="Parent Path">
+                                            From: ${response.parent_path || 'root'}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                                <button class="btn btn-sm btn-outline-warning flag-response-btn" 
+                                        data-response-id="${response.id}" 
+                                        data-current-category="${response.is_flagged ? response.corrected_category : response.category}"
+                                        style="font-family: 'Berkeley Mono', monospace;">
+                                    Flag as Error
+                                </button>
+                            </div>
+                            <p class="mb-1 raw-response">${response.raw_response}</p>
+                            <small class="text-muted" style="font-family: 'Berkeley Mono', monospace; color: #AAAAAA;">
+                                Response ID: ${response.id} • 
+                                Created: ${new Date(response.created_at).toLocaleString()}
+                                ${response.is_flagged ? ` • Verified: ${new Date(response.flagged_at).toLocaleString()}` : ''}
+                                ${response.tree_level > 0 ? ` • Path: ${response.parent_path || 'root'}→${response.category}` : ''}
+                            </small>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // Export JSON data
+    document.getElementById('export-json-btn').addEventListener('click', function() {
+        if (!modelData) return;
+        
+        const dataStr = JSON.stringify(modelData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = `${modelData.model_name.replace(/\s+/g, '_')}_raw_data.json`;
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    });
+    
+    // Note: Verify button was removed, so the event listener is also removed
+    
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', loadRawData);
+</script>
+{% endblock %}

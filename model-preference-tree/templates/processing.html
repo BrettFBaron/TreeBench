@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Processing - Model Preference Testing{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h1 class="h4 mb-0" style="font-family: 'Berkeley Mono', monospace;">Processing Model: <span id="model-name">{{ model_name }}</span></h1>
+                <button id="cancel-test-btn" class="btn btn-danger btn-lg" style="font-family: 'Berkeley Mono', monospace;">
+                    <i class="bi bi-x-octagon-fill"></i> CANCEL TEST
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning mb-4">
+                    <h5 class="alert-heading" style="font-family: 'Berkeley Mono', monospace;"><i class="bi bi-exclamation-triangle-fill"></i> API Usage Warning</h5>
+                    <p style="font-family: 'Berkeley Mono', monospace;">
+                        <strong>This process will make 960 API calls</strong> and may take several minutes to complete.
+                        Each API call counts against your quota and may incur costs.
+                    </p>
+                    <p class="mb-0" style="font-family: 'Berkeley Mono', monospace;">
+                        If you need to stop the test to save API calls, use the <strong>CANCEL TEST</strong> button above.
+                        Cancellation takes effect immediately and will stop all pending API calls.
+                    </p>
+                </div>
+                
+                <div class="mb-4">
+                    <h4 style="font-family: 'Berkeley Mono', monospace;">Overall Progress</h4>
+                    <div class="progress mb-2" style="height: 25px;">
+                        <div id="overall-progress" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                             role="progressbar" style="width: 0%; font-family: 'Berkeley Mono', monospace;">0%</div>
+                    </div>
+                    <p id="progress-stats" style="font-family: 'Berkeley Mono', monospace;">Processing 0/960 responses</p>
+                </div>
+                
+                <div class="mb-4">
+                    <h4 style="font-family: 'Berkeley Mono', monospace;">Question Progress</h4>
+                    <div id="question-progress" class="mb-4">
+                        <!-- Question progress items will be inserted here -->
+                    </div>
+                </div>
+                
+                <div id="complete-message" class="alert alert-success" style="display: none;">
+                    <h4 class="alert-heading" style="font-family: 'Berkeley Mono', monospace;">Processing Complete!</h4>
+                    <p style="font-family: 'Berkeley Mono', monospace;">All questions have been successfully processed. You can now view the results.</p>
+                    <hr>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary" style="font-family: 'Berkeley Mono', monospace;">Return to Dashboard</a>
+                </div>
+                
+                <div id="error-message" class="alert alert-danger" style="display: none;">
+                    <h4 class="alert-heading" style="font-family: 'Berkeley Mono', monospace;">Processing Failed</h4>
+                    <p style="font-family: 'Berkeley Mono', monospace;">An error occurred while processing the model. You can try again or check the logs for more information.</p>
+                    <hr>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary" style="font-family: 'Berkeley Mono', monospace;">Return to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Job ID from URL
+    const jobId = {{ job_id }};
+    
+    // Store question data
+    const questions = {};
+    
+    // Check progress periodically
+    function checkProgress() {
+        fetch(`/api/progress/${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update overall progress
+                const percentage = data.percentage.toFixed(1);
+                document.getElementById('overall-progress').style.width = `${percentage}%`;
+                document.getElementById('overall-progress').textContent = `${percentage}%`;
+                document.getElementById('progress-stats').textContent = 
+                    `Processing ${data.total_completed}/${data.total_required} responses`;
+                
+                // Update question progress
+                const questionContainer = document.getElementById('question-progress');
+                
+                // First time, create the question progress elements
+                if (Object.keys(questions).length === 0) {
+                    for (const [questionId, progressData] of Object.entries(data.questions)) {
+                        questions[questionId] = progressData;
+                        
+                        // Create progress element
+                        const questionElem = document.createElement('div');
+                        questionElem.className = 'mb-3';
+                        questionElem.innerHTML = `
+                            <p class="mb-1" style="font-family: 'Berkeley Mono', monospace;">${questionId.replace('_', ' ').title()}</p>
+                            <div class="progress" style="height: 20px;">
+                                <div id="progress-${questionId}" class="progress-bar bg-success" 
+                                     role="progressbar" style="width: ${progressData.percentage}%; font-family: 'Berkeley Mono', monospace;">
+                                    ${progressData.completed}/${progressData.required}
+                                </div>
+                            </div>
+                        `;
+                        questionContainer.appendChild(questionElem);
+                    }
+                } else {
+                    // Update existing progress elements
+                    for (const [questionId, progressData] of Object.entries(data.questions)) {
+                        const progressBar = document.getElementById(`progress-${questionId}`);
+                        if (progressBar) {
+                            progressBar.style.width = `${progressData.percentage}%`;
+                            progressBar.textContent = `${progressData.completed}/${progressData.required}`;
+                        }
+                    }
+                }
+                
+                // Check if processing is complete
+                if (data.is_complete || data.job_status === 'completed') {
+                    // Show complete message
+                    document.getElementById('complete-message').style.display = 'block';
+                    // Stop polling
+                    clearInterval(progressInterval);
+                } else if (data.job_status === 'failed') {
+                    // Show error message
+                    document.getElementById('error-message').style.display = 'block';
+                    // Stop polling
+                    clearInterval(progressInterval);
+                }
+            })
+            .catch(error => {
+                console.error('Error checking progress:', error);
+            });
+    }
+    
+    // Start checking progress immediately
+    checkProgress();
+    
+    // Then check every 5 seconds
+    const progressInterval = setInterval(checkProgress, 5000);
+    
+    // Remove the default beforeunload warning that browsers add when leaving the page
+    window.onbeforeunload = null;
+    
+    // Helper to format question_id
+    String.prototype.title = function() {
+        return this.replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+    };
+    
+    // Handle cancel button
+    document.getElementById('cancel-test-btn').addEventListener('click', function() {
+        if (confirm('Are you sure you want to cancel this test? This action cannot be undone.')) {
+            // Disable the button to prevent multiple clicks
+            this.disabled = true;
+            this.textContent = 'Canceling...';
+            
+            // Make API call to cancel the test
+            fetch('/api/cancel_test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show message about successful cancellation
+                    const completeMsg = document.getElementById('complete-message');
+                    completeMsg.className = 'alert alert-warning';
+                    completeMsg.querySelector('h4').textContent = 'Test Canceled';
+                    completeMsg.querySelector('p').textContent = 'The test has been canceled. You can return to the dashboard.';
+                    completeMsg.style.display = 'block';
+                    
+                    // Stop polling
+                    clearInterval(progressInterval);
+                } else {
+                    alert(data.message || 'Failed to cancel test.');
+                    // Re-enable the button
+                    this.disabled = false;
+                    this.textContent = 'Cancel Test';
+                }
+            })
+            .catch(error => {
+                console.error('Error canceling test:', error);
+                alert('An error occurred while canceling the test.');
+                // Re-enable the button
+                this.disabled = false;
+                this.textContent = 'Cancel Test';
+            });
+        }
+    });
+</script>
+{% endblock %}

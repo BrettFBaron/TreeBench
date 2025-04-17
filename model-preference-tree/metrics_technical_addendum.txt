@@ -1,0 +1,234 @@
+# Technical Addendum: Computational Implementation of Mode Collapse Metrics
+
+This addendum provides a detailed explanation of the mathematical foundations and implementation details of the Gini coefficient and Shannon entropy metrics used in our mode collapse analysis framework.
+
+## 1. Mathematical Foundations
+
+### 1.1 Probability Distribution Construction
+
+Both metrics operate on a probability distribution constructed from the frequency of model choices. For a given decision level with n possible choices, we define:
+
+- Let X = {x₁, x₂, ..., xₙ} be the set of possible choices
+- Let f(xᵢ) be the frequency (count) of choice xᵢ
+- Let T = ∑ᵢf(xᵢ) be the total number of samples
+- The probability distribution P is defined as p(xᵢ) = f(xᵢ)/T
+
+This gives us a discrete probability distribution where ∑ᵢp(xᵢ) = 1.
+
+## 2. Gini Coefficient Implementation
+
+### 2.1 Theoretical Background
+
+The Gini coefficient was originally developed to measure income inequality in economics. It represents the ratio of the area between the Lorenz curve of a distribution and the line of perfect equality to the total area under the line of perfect equality.
+
+A Lorenz curve plots the cumulative proportion of the population (sorted by value) against the cumulative proportion of the value being measured. For a perfectly equal distribution, the Lorenz curve is a straight diagonal line.
+
+### 2.2 Implementation Considerations
+
+Several equivalent formulations of the Gini coefficient exist. We selected a computationally efficient approach that works well with discrete probability distributions:
+
+```python
+def calculate_gini_coefficient(probabilities):
+    # Sort probabilities in ascending order
+    sorted_probs = sorted(probabilities)
+    n = len(sorted_probs)
+    
+    # Calculate numerator: sum of (i+1)*y_i
+    numerator = sum((i+1) * x for i, x in enumerate(sorted_probs))
+    
+    # Calculate Gini: (2 * numerator / (n * sum(y_i))) - (n+1)/n
+    gini = (2 * numerator / (n * sum(sorted_probs))) - (n + 1) / n
+    
+    return gini
+```
+
+### 2.3 Formula Derivation
+
+The formula G = (2∑ᵢiYᵢ/n∑ᵢYᵢ) - (n+1)/n is derived from the discrete approximation of the Lorenz curve:
+
+1. We order the probabilities in ascending order: p₁ ≤ p₂ ≤ ... ≤ pₙ
+2. The cumulative population proportion at point i is i/n
+3. The cumulative value proportion at point i is ∑ⱼ₌₁ⁱpⱼ/∑ⱼ₌₁ⁿpⱼ
+4. The area under the Lorenz curve is approximated by: ∑ᵢ₌₁ⁿ[(i-1)/n + i/n][∑ⱼ₌₁ⁱ⁻¹pⱼ/∑ⱼ₌₁ⁿpⱼ + ∑ⱼ₌₁ⁱpⱼ/∑ⱼ₌₁ⁿpⱼ]/2
+5. After algebraic simplification, this yields: ∑ᵢ₌₁ⁿipᵢ/n∑ⱼ₌₁ⁿpⱼ - (n+1)/2n
+6. The Gini coefficient is 1 minus twice this area, which gives us the formula: (2∑ᵢiYᵢ/n∑ᵢYᵢ) - (n+1)/n
+
+### 2.4 Computational Optimization
+
+We use the formula directly rather than explicitly constructing the Lorenz curve, which would require additional calculation steps. For our discrete distribution with a small number of categories (5 options), this direct calculation is both accurate and efficient.
+
+### 2.5 Handling Edge Cases
+
+- **All equal probabilities**: If all choices are equally likely (p₁ = p₂ = ... = pₙ = 1/n), the Gini coefficient equals 0.
+- **Single option chosen**: If only one option is ever chosen (e.g., p₁ = 1, p₂ = ... = pₙ = 0), the Gini coefficient equals (n-1)/n, approaching 1 as n increases.
+- **Zero-count categories**: Categories with zero count are still included in the calculation, representing the full space of available options.
+
+## 3. Shannon Entropy Implementation
+
+### 3.1 Theoretical Background
+
+Shannon entropy measures the average level of "information" or "surprise" inherent in a distribution's possible outcomes. It quantifies the uncertainty or randomness in a distribution. Specifically, it measures how many bits, on average, would be needed to encode outcomes from the distribution.
+
+### 3.2 Implementation Considerations
+
+We implemented Shannon entropy with normalization to make it comparable across different decision levels:
+
+```python
+def calculate_normalized_entropy(probabilities):
+    n = len(probabilities)
+    
+    # Calculate Shannon entropy: -∑p(x)log₂p(x)
+    # Only include non-zero probabilities in the sum to avoid log(0)
+    entropy = -sum(p * math.log2(p) for p in probabilities if p > 0)
+    
+    # Calculate maximum possible entropy for this number of options
+    max_entropy = math.log2(n) if n > 0 else 0
+    
+    # Normalize entropy to 0-1 scale
+    normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
+    
+    return normalized_entropy
+```
+
+### 3.3 Normalization Rationale
+
+We normalize the Shannon entropy by dividing by log₂(n), where n is the number of possible choices. This normalization serves several important purposes:
+
+1. **Bounded range**: Normalizing gives us a value between 0 and 1, where:
+   - 0 means minimal entropy (complete certainty/deterministic output)
+   - 1 means maximal entropy (uniform distribution across all options)
+
+2. **Comparable metrics**: Normalized entropy can be directly compared with the Gini coefficient's 0-1 scale.
+
+3. **Interpretation**: The normalized value represents the percentage of maximal possible entropy in the system, making it more intuitive to interpret.
+
+### 3.4 Handling Edge Cases
+
+- **Zero-probability categories**: We exclude terms where p(x) = 0 from the sum since lim_{p→0+} p log(p) = 0.
+- **Uniform distribution**: For a uniform distribution where p₁ = p₂ = ... = pₙ = 1/n, the normalized entropy equals 1.
+- **Single option chosen**: If only one option is ever chosen, the entropy equals 0.
+
+## 4. Comparative Advantages of Dual Metrics
+
+### 4.1 Complementary Sensitivities
+
+The Gini coefficient and Shannon entropy respond differently to changes in the probability distribution:
+
+1. **Gini coefficient**:
+   - Most sensitive to changes in the middle of the distribution
+   - Detects inequality and concentration of probabilities
+   - Less sensitive to small probabilities
+   - Linear response to changes in distribution
+
+2. **Shannon entropy**:
+   - Sensitive to the entire distribution, including rare events
+   - Responds logarithmically to changes in probability
+   - Particularly sensitive to the addition of new non-zero probabilities
+   - Focuses on uncertainty/unpredictability
+
+### 4.2 Concrete Example
+
+Consider two distributions with the same number of options (n=5):
+
+Distribution A: [0.5, 0.3, 0.1, 0.1, 0.0]
+Distribution B: [0.5, 0.2, 0.1, 0.1, 0.1]
+
+Calculations:
+- Gini coefficient of A: 0.48
+- Gini coefficient of B: 0.40
+- Normalized entropy of A: 0.72
+- Normalized entropy of B: 0.82
+
+Both metrics show B is more diverse than A, but entropy shows a larger relative difference because it's more sensitive to the addition of a small probability in the fifth option.
+
+## 5. Implementation in Our API
+
+### 5.1 Code Structure
+
+In our system, the calculations are implemented in the `/api/mode_collapse` endpoint:
+
+```python
+# Calculate Gini coefficient
+sorted_probs = sorted(probabilities)
+n = len(sorted_probs)
+numerator = sum((i+1) * x for i, x in enumerate(sorted_probs))
+gini = (2 * numerator / (n * sum(sorted_probs))) - (n + 1) / n
+
+# Calculate Shannon Entropy
+entropy = -sum(p * math.log2(p) for p in probabilities if p > 0)
+max_entropy = math.log2(n) if n > 0 else 0
+normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0
+```
+
+### 5.2 Level-Specific Considerations
+
+For level-specific calculations:
+
+1. **Level 0 (Root choice)**:
+   - Uses all root-level responses
+   - Calculates metrics across destination country choices
+   - Provides baseline preference measurement
+
+2. **Level 1 (Follow-up choice)**:
+   - Calculated separately for each Level 0 choice
+   - Indicates how consistent model activity choices are for each country
+   - Allows detection of conditional mode collapse
+
+3. **Aggregate metrics**:
+   - Primary metrics are based on Level 0 (root choices)
+   - We also calculate averages across all levels
+   - Enables holistic understanding of model behavior
+
+### 5.3 Data Preprocessing
+
+Before calculating metrics, we:
+1. Filter out "incomplete" responses where the model didn't make a clear choice
+2. Group responses by tree level and parent path
+3. Construct a probability distribution from the raw counts
+4. Apply metrics to the clean probability distribution
+
+## 6. Interpretation Framework
+
+### 6.1 Gini Coefficient Classification
+
+We establish the following interpretation thresholds:
+- 0.0-0.3: Low mode collapse (diverse choices)
+- 0.3-0.6: Moderate mode collapse
+- 0.6-1.0: High mode collapse (concentrated choices)
+
+### 6.2 Entropy Classification
+
+For normalized entropy:
+- 0.7-1.0: Low mode collapse (high diversity)
+- 0.4-0.7: Moderate mode collapse
+- 0.0-0.4: High mode collapse (low diversity)
+
+### 6.3 Combined Interpretation
+
+When both metrics agree (high Gini + low entropy or low Gini + high entropy), we have strong confidence in the assessment. When they diverge, we examine the shape of the distribution to understand which metric is more representative for that particular case.
+
+## 7. Mathematical Edge Cases and Limitations
+
+### 7.1 Statistical Significance
+
+With 32 samples per level, we achieve a good balance between computational efficiency and statistical power. The standard error for a proportion p in a sample of size n is √(p(1-p)/n). For p=0.5 and n=32, the standard error is approximately 0.088, giving us sufficient confidence in our measurements.
+
+### 7.2 Known Limitations
+
+1. **Discrete approximation**: Both metrics are continuous measures applied to discrete distributions, which introduces minor approximation errors.
+
+2. **Sample size effects**: With smaller sample sizes, metrics can be more volatile. Our choice of 32 samples mitigates this while remaining computationally feasible.
+
+3. **Category mapping**: Our implementation relies on accurate categorization of free-text responses into discrete options, which introduces some potential for classification error.
+
+## 8. Conclusion
+
+The implementation of the Gini coefficient and Shannon entropy metrics in our system provides a robust mathematical foundation for measuring mode collapse. By providing complementary perspectives on the same distribution, these metrics give us a comprehensive understanding of how consistently models make the same choices across multiple samples.
+
+The specific formulations we chose prioritize:
+1. Computational efficiency
+2. Interpretability
+3. Comparability across different decision levels
+4. Robustness to sampling variations
+
+These considerations ensure that our metrics accurately capture the phenomenon of mode collapse while remaining practical to implement in a real-time system analyzing model outputs.

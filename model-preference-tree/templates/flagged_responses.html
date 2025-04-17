@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Flagged Responses - {{ model_name }} - Model Preference Testing{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="mb-3" style="font-family: 'Berkeley Mono', monospace;">Flagged Responses: {{ model_name }}</h1>
+        <p class="lead" style="font-family: 'Berkeley Mono', monospace;">View responses that have been flagged for incorrect classification.</p>
+        
+        <div class="d-flex gap-2 mb-4">
+            <button id="download-json-btn" class="btn btn-outline-primary" style="font-family: 'Berkeley Mono', monospace;">Download JSON</button>
+            <a href="/raw_data?model_name={{ model_name | urlencode }}" class="btn btn-outline-secondary" style="font-family: 'Berkeley Mono', monospace;">View All Responses</a>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary" style="font-family: 'Berkeley Mono', monospace;">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+
+<div id="loading-indicator" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2" style="font-family: 'Berkeley Mono', monospace;">Loading flagged responses...</p>
+</div>
+
+<div id="no-flagged-responses" class="alert alert-info" style="display:none;">
+    <p style="font-family: 'Berkeley Mono', monospace;">No responses have been flagged for this model.</p>
+</div>
+
+<div id="flagged-data-container" style="display: none;">
+    <!-- Flagged responses will be rendered here -->
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const modelName = "{{ model_name }}";
+    let flaggedData;
+    
+    // Function to load flagged responses
+    function loadFlaggedResponses() {
+        fetch(`/api/flagged_responses?model_name=${encodeURIComponent(modelName)}`)
+            .then(response => response.json())
+            .then(data => {
+                flaggedData = data;
+                if (data.count > 0) {
+                    renderFlaggedData();
+                    document.getElementById('flagged-data-container').style.display = 'block';
+                    document.getElementById('no-flagged-responses').style.display = 'none';
+                } else {
+                    document.getElementById('no-flagged-responses').style.display = 'block';
+                    document.getElementById('flagged-data-container').style.display = 'none';
+                }
+                document.getElementById('loading-indicator').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error loading data:', error);
+                document.getElementById('loading-indicator').style.display = 'none';
+                document.getElementById('flagged-data-container').innerHTML = 
+                    '<div class="alert alert-danger">Error loading flagged responses. Please try again.</div>';
+                document.getElementById('flagged-data-container').style.display = 'block';
+            });
+    }
+    
+    // Function to render flagged responses
+    function renderFlaggedData() {
+        if (!flaggedData || !flaggedData.questions) {
+            document.getElementById('flagged-data-container').innerHTML = 
+                '<div class="alert alert-warning">No flagged responses available for this model.</div>';
+            return;
+        }
+        
+        const container = document.getElementById('flagged-data-container');
+        let html = '';
+        
+        // Add model metadata
+        html += `
+            <div class="card mb-5">
+                <div class="card-header" style="background-color: #1E1E1E; border-bottom: 1px solid #444444;">
+                    <h4 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">Flagged Responses Summary</h4>
+                </div>
+                <div class="card-body" style="background-color: #1E1E1E; color: #F8F8F8;">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Model Name</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">${flaggedData.model_name}</dd>
+                        
+                        <dt class="col-sm-3" style="font-family: 'Berkeley Mono', monospace;">Total Flagged</dt>
+                        <dd class="col-sm-9" style="font-family: 'Berkeley Mono', monospace;">
+                            <span class="badge bg-warning" style="font-family: 'Berkeley Mono', monospace;">
+                                ${flaggedData.count}
+                            </span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        `;
+        
+        // Add each question's flagged responses
+        for (const [questionId, questionData] of Object.entries(flaggedData.questions)) {
+            html += `
+                <div class="card mb-5">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #1E1E1E; border-bottom: 1px solid #444444;">
+                        <h4 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">${questionId.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase())}</h4>
+                        <a href="/results/${questionId}" class="btn btn-sm btn-primary" style="font-family: 'Berkeley Mono', monospace;">View Results</a>
+                    </div>
+                    <div class="card-body" style="background-color: #1E1E1E; color: #F8F8F8;">
+                        <p class="mb-3" style="font-family: 'Berkeley Mono', monospace;">${questionData.question_text}</p>
+                        
+                        <h5 style="font-family: 'Berkeley Mono', monospace;">Flagged Responses</h5>
+                        <div class="list-group">
+            `;
+            
+            // Add each flagged response
+            questionData.responses.forEach(response => {
+                html += `
+                    <div class="list-group-item mb-3" style="background-color: #1E1E1E; color: #F8F8F8; border-color: #444444;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-danger me-2" style="font-family: 'Berkeley Mono', monospace;">
+                                Original: ${response.original_category}
+                            </span>
+                            <span class="badge bg-success" style="font-family: 'Berkeley Mono', monospace;">
+                                Corrected: ${response.corrected_category}
+                            </span>
+                        </div>
+                        <p class="mb-2" style="font-family: 'Berkeley Mono', monospace;">${response.raw_response}</p>
+                        <small class="text-muted" style="font-family: 'Berkeley Mono', monospace; color: #AAAAAA;">
+                            Response ID: ${response.id} • 
+                            Flagged at: ${new Date(response.flagged_at).toLocaleString()}
+                        </small>
+                    </div>
+                `;
+            });
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // Download flagged responses as JSON
+    document.getElementById('download-json-btn').addEventListener('click', function() {
+        fetch(`/api/download_flagged_responses?model_name=${encodeURIComponent(modelName)}`)
+            .then(response => response.json())
+            .then(data => {
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                
+                const exportFileDefaultName = `${modelName.replace(/\s+/g, '_')}_flagged_responses.json`;
+                
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+            })
+            .catch(error => {
+                console.error('Error downloading data:', error);
+                alert('Error downloading flagged responses data. Please try again.');
+            });
+    });
+    
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', loadFlaggedResponses);
+</script>
+{% endblock %}

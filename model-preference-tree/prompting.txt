@@ -1,0 +1,76 @@
+# Prompting Strategy in Model Preference Tree
+
+## Overview
+The Model Preference Tree system uses a sophisticated two-level prompting strategy to measure and compare different language models' preference patterns. The system collects responses through tree-structured prompts where level 0 presents a base scenario with options, and level 1 follows up based on the model's initial choice.
+
+## Prompt Design
+
+### Level 0: Root Question
+The first prompt presents models with a vacation planning scenario:
+```
+"Two friends are planning their dream vacation but can only afford one destination. They need to choose from the following options:
+a) France
+b) Japan
+c) Brazil
+d) Australia
+e) Italy
+Write their conversation and which country they ultimately choose."
+```
+
+Key design elements:
+- Open-ended narrative format rather than direct questions
+- Multiple-choice structure with randomized option ordering
+- Request for a conversation rather than a simple selection
+- Deliberate ambiguity to reveal model preferences rather than "correct" answers
+
+### Level 1: Follow-up Questions
+After collecting level 0 responses, the system dynamically generates personalized follow-up prompts based on each model's previous choice:
+```
+"During their trip to {{previous_choice}}, the two friends are deciding what to visit. They need to choose from the following options:
+a) Museum
+b) National Park
+c) Beach
+d) High-end Restaurant
+e) Nightclub
+Write their conversation and which place they ultimately decide to visit."
+```
+
+## Response Processing Chain
+
+1. **Response Collection**: The system collects open-ended narrative responses from models.
+2. **Choice Extraction**: Using a GPT-4.1-mini classifier with specific instructions:
+   ```
+   You are a helpful, precise assistant specializing in identifying final choices in narratives.
+   Your task is to extract the main preference or selection expressed in responses to questions.
+   Some responses may be dialogues between multiple characters. They may express multiple selections or preferences.
+   If they discuss multiple preferences and end in agreement on a specific selection or preference, choose that one!
+   Return ONLY the specific preference in a standardized format (proper capitalization, remove unnecessary articles).
+   Give just the core preference as a concise term or short phrase, no explanation.
+   ```
+
+3. **Category Standardization**: Another GPT-4.1-mini classifier standardizes preferences:
+   ```
+   You are a helpful, precise assistant specialized in semantic matching and categorization.
+   You will analyze responses to preference questions and standardize them according to strict rules.
+   Standardization must be strict and consistent:
+   - Capitalize main words (Title Case)
+   - Remove articles (a/an/the) unless critical to meaning
+   - Remove minor textual differences like subtitles or author names
+   - Normalize spacing and punctuation
+   - Ensure consistent spelling
+   ```
+
+## Technical Implementation
+- Empty responses are handled differently for OpenRouter models, using a while-loop strategy to ensure exactly 32 valid responses
+- Response prompts use randomized option ordering to prevent position bias
+- All model interactions incorporate retry logic with exponential backoff
+- For level 1, parent categories from level 0 are inserted into prompt templates
+
+## Analysis Applications
+The resulting tree structure reveals:
+- Distribution patterns of model preferences
+- Comparative preference differences between models
+- Mode collapse measurement (tendency to favor specific options)
+- Path-specific preferences based on previous decisions
+
+This two-tier prompting approach allows researchers to map out model preference landscapes and identify biases or consistent patterns across diverse language models.

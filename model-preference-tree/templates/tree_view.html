@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+
+{% block title %}Tree View - Model Preference Testing{% endblock %}
+
+{% block content %}
+
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="mb-0" id="treeTitle">Decision Tree</h3>
+                <div class="btn-toolbar">
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle" type="button" id="modelDropdown" data-bs-toggle="dropdown">
+                            Select Model
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" id="modelList">
+                            <!-- Models will be populated via JS -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="tree-container" class="tree-container" style="height: 600px; width: 100%;">
+                    <!-- Tree SVG will be rendered here -->
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Path Statistics</h5>
+                        <div id="pathStats" class="small">
+                            <div>Total possible paths: <span id="totalPaths">0</span></div>
+                            <div>Active paths: <span id="activePaths">0</span></div>
+                            <div>Mode collapse index: <span id="modeCollapseIndex">0%</span></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Legend</h5>
+                        <div class="tree-legend small">
+                            <div><span class="legend-item" style="background-color: rgba(0,100,0,0.5);"></span> Root node (Decision Trees)</div>
+                            <div><span class="legend-item" style="background-color: rgba(0,0,100,0.5);"></span> Level 1 node (Follow-up Question)</div>
+                            <div><span class="legend-item" style="border: 2px dashed #999; background-color: transparent;"></span> Inactive path (never chosen)</div>
+                            <div><span class="legend-item" style="height: 2px; background-color: #666;"></span> Line thickness = frequency of choice</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed path view -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">Path Details</h3>
+            </div>
+            <div class="card-body">
+                <div id="path-details">
+                    <p class="text-muted">Click on a node in the tree to see details about that path.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Include D3.js for tree visualization -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+    // Global variables
+    let treeData = null;
+    let currentModel = null;
+    
+    // Helper function to check if dark mode is active
+    function isDarkMode() {
+        return !document.body.hasAttribute('data-theme') || document.body.getAttribute('data-theme') !== 'light';
+    }
+    
+    // Fetch all available models
+    async function fetchModels() {
+        try {
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            
+            const modelList = document.getElementById('modelList');
+            modelList.innerHTML = '';
+            
+            if (data.models && data.models.length > 0) {
+                data.models.forEach(model => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.className = 'dropdown-item';
+                    a.href = '#';
+                    a.textContent = model;
+                    a.onclick = (e) => {
+                        e.preventDefault();
+                        selectModel(model);
+                    };
+                    li.appendChild(a);
+                    modelList.appendChild(li);
+                });
+                
+                // Auto-select first model
+                if (!currentModel) {
+                    selectModel(data.models[0]);
+                }
+            } else {
+                const li = document.createElement('li');
+                li.innerHTML = '<span class="dropdown-item text-muted">No models available</span>';
+                modelList.appendChild(li);
+            }
+        } catch (error) {
+            console.error('Error fetching models:', error);
+        }
+    }
+    
+    // Select a model and fetch its tree data
+    function selectModel(modelName) {
+        currentModel = modelName;
+        document.getElementById('modelDropdown').textContent = modelName;
+        document.getElementById('treeTitle').textContent = `Decision Tree: ${modelName}`;
+        
+        fetchTreeData(modelName);
+    }
+    
+    // Fetch tree data for the selected model
+    async function fetchTreeData(modelName) {
+        try {
+            const response = await fetch(`/api/tree_data?model_name=${encodeURIComponent(modelName)}`);
+            const data = await response.json();
+            
+            treeData = data;
+            renderTree(data);
+            updatePathStats(data);
+        } catch (error) {
+            console.error('Error fetching tree data:', error);
+            document.getElementById('tree-container').innerHTML = 
+                `<div class="alert alert-danger">Error loading tree data: ${error.message}</div>`;
+        }
+    }
+    
+    // Update path statistics
+    function updatePathStats(data) {
+        const root = data.tree;
+        
+        // Calculate active vs. total paths
+        let totalPaths = 0;
+        let activePaths = 0;
+        
+        // Hard-code the option counts based on the config
+        // We know there are 5 options at level 0 and 5 options at level 1
+        const level0Options = 5;
+        const level1Options = 5;
+        
+        // Calculate theoretical total paths (level0 * level1)
+        totalPaths = level0Options * level1Options;
+        
+        // Now count active paths (those with actual sample data)
+        function countActivePaths(node) {
+            if (!node.children || node.children.length === 0) {
+                // If this is a leaf node with samples, it's an active path
+                if (node.sample_count > 0) {
+                    activePaths++;
+                }
+                return;
+            }
+            
+            // For non-leaf nodes, recurse to children
+            node.children.forEach(child => {
+                if (child.sample_count > 0) {
+                    countActivePaths(child);
+                }
+            });
+        }
+        
+        countActivePaths(root);
+        
+        // Override if no data
+        if (activePaths === 0) {
+            totalPaths = 0;
+        }
+        
+        // Calculate mode collapse index (0-100%)
+        // Higher = more collapsed (fewer active paths relative to total possible)
+        const modeCollapseIndex = totalPaths > 0 ? 
+            Math.round(100 * (1 - (activePaths / totalPaths))) : 0;
+        
+        // Update the display
+        document.getElementById('totalPaths').textContent = totalPaths;
+        document.getElementById('activePaths').textContent = activePaths;
+        document.getElementById('modeCollapseIndex').textContent = `${modeCollapseIndex}%`;
+    }
+    
+    // Render tree visualization
+    function renderTree(data) {
+        // Clear previous visualization
+        document.getElementById('tree-container').innerHTML = '';
+        
+        // Get theme state
+        const darkMode = isDarkMode();
+        
+        // Set up dimensions
+        const margin = {top: 20, right: 120, bottom: 20, left: 120};
+        const width = document.getElementById('tree-container').clientWidth - margin.right - margin.left;
+        const height = 500;
+        
+        // Create SVG
+        const svg = d3.select('#tree-container')
+            .append('svg')
+            .attr('width', width + margin.right + margin.left)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+        
+        // Create tree layout
+        const tree = d3.tree().size([height, width - 160]);
+        
+        // Create root node
+        const root = d3.hierarchy(data.tree);
+        tree(root);
+        
+        // Draw links
+        svg.selectAll('.link')
+            .data(root.links())
+            .enter()
+            .append('path')
+            .attr('class', 'link')
+            .attr('d', d => {
+                return `M${d.target.y},${d.target.x}
+                        C${(d.source.y + d.target.y) / 2},${d.target.x}
+                         ${(d.source.y + d.target.y) / 2},${d.source.x}
+                         ${d.source.y},${d.source.x}`;
+            })
+            .style('fill', 'none')
+            .style('stroke', darkMode ? '#888' : '#999')
+            .style('stroke-opacity', darkMode ? 0.8 : 1)
+            .style('stroke-width', d => {
+                // Line thickness based on sample count
+                const count = d.target.data.sample_count || 0;
+                return Math.max(1, Math.min(10, count / 3)); // Scale thickness
+            })
+            .style('stroke-dasharray', d => {
+                // Dashed lines for inactive paths
+                return (!d.target.data.is_active || !d.source.data.is_active) ? '5,5' : 'none';
+            });
+        
+        // Draw nodes
+        const nodes = svg.selectAll('.node')
+            .data(root.descendants())
+            .enter()
+            .append('g')
+            .attr('class', 'node')
+            .attr('transform', d => `translate(${d.y},${d.x})`)
+            .on('click', handleNodeClick);
+        
+        // Add node circles
+        nodes.append('circle')
+            .attr('r', d => {
+                // Size based on sample count
+                const count = d.data.sample_count || 0;
+                return Math.max(5, Math.min(15, 5 + count / 6)); // Scale size
+            })
+            .style('fill', d => {
+                // Color based on tree level
+                if (d.depth === 0) return 'rgba(0,100,0,0.7)'; // Root
+                if (d.depth === 1) return 'rgba(0,0,100,0.7)'; // Level 1
+                return 'rgba(100,0,0,0.7)'; // Level 2+
+            })
+            .style('stroke', darkMode ? '#AAAAAA' : '#fff')
+            .style('stroke-width', 2)
+            .style('stroke-dasharray', d => d.data.is_active === false ? '3,3' : 'none')
+            .style('opacity', d => d.data.is_active === false ? 0.4 : 1);
+        
+        // Add labels
+        nodes.append('text')
+            .attr('dy', '.35em')
+            .attr('x', d => d.children ? -13 : 13)
+            .style('text-anchor', d => d.children ? 'end' : 'start')
+            .style('fill', darkMode ? '#DCDCDC' : '#333333')  // Set text color based on theme
+            .style('font-family', "'Berkeley Mono', 'Menlo', 'Consolas', monospace")
+            .style('font-size', '12px')
+            .style('text-shadow', darkMode ? '0 0 3px rgba(0, 0, 0, 0.8)' : 'none')
+            .text(d => {
+                // Format label based on depth
+                if (d.depth === 0) return 'Root';
+                
+                // For categories, truncate if too long
+                const category = d.data.category || '';
+                return category.length > 20 ? category.substring(0, 18) + '...' : category;
+            })
+            .style('font-size', '12px')
+            .style('opacity', d => d.data.is_active === false ? 0.6 : 1);
+        
+        // Add sample count labels
+        nodes.append('text')
+            .attr('dy', '1.5em')
+            .attr('x', d => d.children ? -13 : 13)
+            .style('text-anchor', d => d.children ? 'end' : 'start')
+            .text(d => {
+                if (d.data.sample_count) return `(${d.data.sample_count})`;
+                return '';
+            })
+            .style('font-size', '10px')
+            .style('fill', darkMode ? '#AAAAAA' : '#666')
+            .style('opacity', d => d.data.is_active === false ? 0.6 : 1);
+    }
+    
+    // Handle node click to show path details
+    function handleNodeClick(event, d) {
+        const pathDetails = document.getElementById('path-details');
+        
+        // Construct full path
+        const pathSegments = [];
+        let current = d;
+        while (current) {
+            if (current.data.category) {
+                pathSegments.unshift(current.data.category);
+            }
+            current = current.parent;
+        }
+        
+        // Create path string
+        const pathString = pathSegments.join(' → ');
+        
+        // Create HTML content
+        let content = `
+            <h4>${pathString || 'Root'}</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header">Node Information</div>
+                        <div class="card-body">
+                            <p><strong>Level:</strong> ${d.depth}</p>
+                            <p><strong>Category:</strong> ${d.data.category || 'Root'}</p>
+                            <p><strong>Status:</strong> ${d.data.is_active === false ? 'Inactive' : 'Active'}</p>
+                            <p><strong>Sample Count:</strong> ${d.data.sample_count || 0}</p>
+                            <p class="text-muted" style="font-style: italic;">${d.depth === 0 ? 
+                                'Root node - represents initial country selection' : 
+                                'Follow-up node - represents activity choice within the selected country'}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">Path Analysis</div>
+                        <div class="card-body">
+        `;
+        
+        // Add path frequency if available
+        if (d.depth > 0) {
+            const totalSamples = d.depth === 1 ? 
+                treeData.level_stats.level_0_total_samples : 
+                treeData.level_stats.level_1_total_samples;
+                
+            const pathFrequency = (d.data.sample_count / totalSamples * 100).toFixed(1);
+            
+            content += `
+                <p><strong>Path Frequency:</strong> ${pathFrequency}%</p>
+                <p><strong>Path Type:</strong> ${getPathType(pathFrequency)}</p>
+            `;
+        }
+        
+        content += `
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // If we have sample responses, show them
+        if (d.data.sample_responses && d.data.sample_responses.length > 0) {
+            content += `
+                <div class="card mt-3">
+                    <div class="card-header">Sample Responses</div>
+                    <div class="card-body">
+                        <div class="accordion" id="sampleResponses">
+            `;
+            
+            d.data.sample_responses.forEach((response, index) => {
+                content += `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading${index}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse${index}" aria-expanded="false" aria-controls="collapse${index}">
+                                Sample #${index + 1}
+                            </button>
+                        </h2>
+                        <div id="collapse${index}" class="accordion-collapse collapse" aria-labelledby="heading${index}" data-bs-parent="#sampleResponses">
+                            <div class="accordion-body">
+                                <pre class="response-text">${response}</pre>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            content += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        pathDetails.innerHTML = content;
+    }
+    
+    // Helper function to categorize path frequency
+    function getPathType(frequency) {
+        if (frequency >= 50) return 'Dominant Path (Mode Collapse)';
+        if (frequency >= 25) return 'Major Path';
+        if (frequency >= 10) return 'Significant Path';
+        return 'Minor Path';
+    }
+    
+    // Handle window resize
+    function handleResize() {
+        if (treeData) {
+            renderTree(treeData);
+        }
+    }
+    
+    // Handle theme changes
+    function handleThemeChange() {
+        if (treeData) {
+            renderTree(treeData);
+        }
+    }
+    
+    // Initialize the page
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchModels();
+        
+        // Handle resize
+        window.addEventListener('resize', handleResize);
+        
+        // Compare models button removed
+        
+        // Register theme change handler if ThemeManager exists
+        if (window.ThemeManager) {
+            window.ThemeManager.onThemeChange(handleThemeChange);
+        }
+    });
+</script>
+
+<style>
+    .tree-container {
+        overflow: auto;
+    }
+    
+    .legend-item {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+    
+    .tree-legend div {
+        margin-bottom: 5px;
+    }
+    
+    .response-text {
+        white-space: pre-wrap;
+        font-size: 0.9em;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}

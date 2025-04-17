@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Model - Model Preference Testing{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h1 class="h4 mb-0" style="font-family: 'Berkeley Mono', monospace;">Test a New Model</h1>
+            </div>
+            <div class="card-body">
+                <p class="mb-4" style="font-family: 'Berkeley Mono', monospace;">
+                    Submit the details of a model to test how it responds to preference questions.
+                    This will collect multiple responses for each question and categorize them.
+                </p>
+                
+                <div class="alert alert-warning" id="test-status-alert" style="display: none;">
+                    <strong style="font-family: 'Berkeley Mono', monospace;">Notice:</strong> <span id="test-status-message" style="font-family: 'Berkeley Mono', monospace;"></span>
+                </div>
+                
+                <form id="model-form" method="POST">
+                    <div class="mb-3">
+                        <label for="model_name" class="form-label" style="font-family: 'Berkeley Mono', monospace;">Model Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="model_name" name="model_name" required 
+                               placeholder="e.g., Anthropic Claude 3 Opus" style="font-family: 'Berkeley Mono', monospace;">
+                        <div class="form-text" style="font-family: 'Berkeley Mono', monospace;">A descriptive name for the model.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="api_type" class="form-label" style="font-family: 'Berkeley Mono', monospace;">API Type <span class="text-danger">*</span></label>
+                        <select class="form-select" id="api_type" name="api_type" required style="font-family: 'Berkeley Mono', monospace;">
+                            <option value="">Select API Type</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="mistral">Mistral</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <div class="form-text" style="font-family: 'Berkeley Mono', monospace;">The type of API you're connecting to.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="api_url" class="form-label" style="font-family: 'Berkeley Mono', monospace;">API URL <span class="text-danger">*</span></label>
+                        <input type="url" class="form-control" id="api_url" name="api_url" required
+                               placeholder="e.g., https://api.anthropic.com/v1/messages" style="font-family: 'Berkeley Mono', monospace;">
+                        <div class="form-text" style="font-family: 'Berkeley Mono', monospace;">The endpoint URL for the API.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="api_key" class="form-label" style="font-family: 'Berkeley Mono', monospace;">API Key <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="api_key" name="api_key" required style="font-family: 'Berkeley Mono', monospace;">
+                        <div class="form-text" style="font-family: 'Berkeley Mono', monospace;">Your API key. This is temporarily stored for processing and not saved permanently.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="model_id" class="form-label" style="font-family: 'Berkeley Mono', monospace;">Model ID <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="model_id" name="model_id" required
+                               placeholder="e.g., claude-3-opus-20240229" style="font-family: 'Berkeley Mono', monospace;">
+                        <div class="form-text" style="font-family: 'Berkeley Mono', monospace;">The specific model identifier used in API calls.</div>
+                    </div>
+                    
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading" style="font-family: 'Berkeley Mono', monospace;"><i class="bi bi-exclamation-triangle-fill"></i> Important API Usage Warning</h5>
+                        <p style="font-family: 'Berkeley Mono', monospace;"><strong>This process will make 960 API calls</strong> (64 API calls for each of the 15 questions).</p>
+                        <p style="font-family: 'Berkeley Mono', monospace;">Each API call counts against your quota and may incur costs with your API provider:</p>
+                        <ul style="font-family: 'Berkeley Mono', monospace;">
+                            <li><strong>OpenAI:</strong> Approximately $2-30 USD depending on model</li>
+                            <li><strong>Anthropic:</strong> Approximately $3-30 USD depending on model</li>
+                            <li><strong>Mistral:</strong> Approximately $2-15 USD depending on model</li>
+                            <li><strong>OpenRouter:</strong> Varies based on model selected (check OpenRouter pricing)</li>
+                        </ul>
+                        <p class="mb-0" style="font-family: 'Berkeley Mono', monospace;">You can cancel the test at any time to stop API calls and save quota/costs.</p>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" style="font-family: 'Berkeley Mono', monospace;">Submit Model for Testing</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary" style="font-family: 'Berkeley Mono', monospace;">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if another test is running when the page loads
+    fetch('/api/test_status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.is_running) {
+                // Show alert that another test is running
+                const statusAlert = document.getElementById('test-status-alert');
+                const statusMessage = document.getElementById('test-status-message');
+                
+                statusMessage.innerHTML = `Another test is currently running for model <strong>${data.current_model}</strong>. 
+                                          Please wait for it to complete or <a href="/processing/${data.job_id}">check its progress</a>.`;
+                statusAlert.style.display = 'block';
+                
+                // Disable the submit button
+                document.querySelector('button[type="submit"]').disabled = true;
+            }
+        })
+        .catch(error => {
+            console.error('Error checking test status:', error);
+        });
+
+    const apiTypeSelect = document.getElementById('api_type');
+    const apiUrlInput = document.getElementById('api_url');
+    
+    // Update API URL based on selected API type
+    apiTypeSelect.addEventListener('change', function() {
+        const apiType = apiTypeSelect.value;
+        switch (apiType) {
+            case 'openai':
+                apiUrlInput.value = 'https://api.openai.com/v1/chat/completions';
+                break;
+            case 'anthropic':
+                apiUrlInput.value = 'https://api.anthropic.com/v1/messages';
+                break;
+            case 'mistral':
+                apiUrlInput.value = 'https://api.mistral.ai/v1/chat/completions';
+                break;
+            case 'openrouter':
+                apiUrlInput.value = 'https://openrouter.ai/api/v1/chat/completions';
+                break;
+            default:
+                apiUrlInput.value = '';
+        }
+    });
+    
+    // Form submission handling - convert to AJAX
+    const form = document.getElementById('model-form');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Confirm before submitting due to API usage costs
+        if (!confirm('WARNING: This will make 960 API calls and may incur significant costs based on your API provider. Do you want to continue?')) {
+            return; // User clicked cancel
+        }
+        
+        // Get form data
+        const formData = {
+            model_name: document.getElementById('model_name').value,
+            api_type: document.getElementById('api_type').value,
+            api_url: document.getElementById('api_url').value,
+            api_key: document.getElementById('api_key').value,
+            model_id: document.getElementById('model_id').value
+        };
+        
+        // Submit via AJAX
+        fetch('/api/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Redirect to processing page
+                window.location.href = '/processing/' + data.job_id;
+            } else {
+                if (data.error && data.error.includes("test is already running")) {
+                    // Show error in the alert box
+                    const statusAlert = document.getElementById('test-status-alert');
+                    const statusMessage = document.getElementById('test-status-message');
+                    
+                    statusMessage.innerHTML = `Another test is currently running for model <strong>${data.current_model}</strong>. 
+                                              Please wait for it to complete or <a href="/processing/${data.job_id}">check its progress</a>.`;
+                    statusAlert.style.display = 'block';
+                    
+                    // Disable the submit button
+                    document.querySelector('button[type="submit"]').disabled = true;
+                } else {
+                    alert('Error submitting model: ' + (data.error || data.detail || 'Unknown error'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error submitting model. Please try again.');
+        });
+    });
+});
+</script>
+{% endblock %}

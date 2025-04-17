@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Models{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4" style="font-family: 'Berkeley Mono', monospace;">Available Models</h2>
+        
+        <!-- Models with data -->
+        {% if models %}
+        <div class="card mb-5">
+            <div class="card-header">
+                <h4 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">Models</h4>
+            </div>
+            <div class="card-body">
+                <p style="font-family: 'Berkeley Mono', monospace;">Select a model to view or download its raw JSON data:</p>
+                <div class="list-group">
+                    {% for model in models %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center" style="font-family: 'Berkeley Mono', monospace;">
+                        <span>{{ model }}</span>
+                        <div class="btn-group">
+                            <a href="/raw_data?model_name={{ model | urlencode }}" class="btn btn-sm btn-primary" style="font-family: 'Berkeley Mono', monospace;">View Raw Data</a>
+                            <button class="btn btn-sm btn-danger delete-model-btn" data-model="{{ model }}" style="font-family: 'Berkeley Mono', monospace;">Delete</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info" style="font-family: 'Berkeley Mono', monospace;">
+            No model data available. <a href="{{ url_for('submit_form') }}" class="alert-link">Test a new model</a> to get started.
+        </div>
+        {% endif %}
+        
+        <div class="d-flex gap-2 mb-4">
+            <button id="clear-data-btn" class="btn btn-danger" style="font-family: 'Berkeley Mono', monospace;">Clear All Data</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('clear-data-btn').addEventListener('click', function() {
+        // Show confirmation dialog
+        if (confirm('WARNING: This will delete ALL model test data. This action cannot be undone. Are you sure you want to proceed?')) {
+            // Make the API call to clear data
+            fetch('/api/clear_all_data', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('All data has been successfully cleared.');
+                    // Reload the page to show the empty dashboard
+                    window.location.reload();
+                } else {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        alert('Error clearing data: ' + (data.message || 'Unknown error'));
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while clearing data. Please try again.');
+            });
+        }
+    });
+    
+    // Set up event listeners for delete model buttons
+    document.querySelectorAll('.delete-model-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const modelName = this.getAttribute('data-model');
+            
+            // Show confirmation dialog
+            if (confirm(`WARNING: This will delete all data for the model "${modelName}". This action cannot be undone. Are you sure you want to proceed?`)) {
+                // Make the API call to delete model data
+                fetch(`/api/models/${encodeURIComponent(modelName)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Data for model "${modelName}" has been successfully deleted.`);
+                        // Reload the page to show updated dashboard
+                        window.location.reload();
+                    } else {
+                        if (data.error) {
+                            alert('Error: ' + data.error);
+                        } else {
+                            alert(`Error deleting model data: ${data.message || 'Unknown error'}`);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting model data. Please try again.');
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

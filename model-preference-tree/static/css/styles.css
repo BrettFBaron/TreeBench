@@ -1,0 +1,704 @@
+/* Berkeley Mono Font */
+@font-face {
+    font-family: 'Berkeley Mono';
+    src: local('Berkeley Mono'),
+         url('https://cdn.jsdelivr.net/gh/BerkeleyTrue/berkeleymonovarfont@1.0.0/berkeley-mono-variable.woff2') format('woff2-variations');
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+/* Keep Berkeley Mono as the only custom font */
+
+/* Theme Variables */
+:root {
+    --bg-color: #121212;
+    --text-color: #DCDCDC;
+    --card-bg: #1E1E1E;
+    --card-header-bg: #252525;
+    --border-color: #333333;
+    --btn-bg: #252525;
+    --btn-border: #333333;
+    --primary-color: #33FF33;
+    --danger-color: #FF5555;
+    --link-color: #00AAFF;
+    --navbar-bg: #1E1E1E;
+    --form-bg: #181818;
+    --muted-color: #AAAAAA;
+    --hover-bg: #252525;
+}
+
+/* Light Mode Variables */
+[data-theme="light"] {
+    --bg-color: #FFFFFF;
+    --text-color: #333333;
+    --card-bg: #FFFFFF;
+    --card-header-bg: #F8F8F8;
+    --border-color: #DDDDDD;
+    --btn-bg: #FFFFFF;
+    --btn-border: #CCCCCC;
+    --primary-color: #209620;
+    --danger-color: #DC3545;
+    --link-color: #0066CC;
+    --navbar-bg: transparent;
+    --form-bg: #FFFFFF;
+    --muted-color: #666666;
+    --hover-bg: #F0F0F0;
+}
+
+/* Retro Hacker Styles */
+body {
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace;
+    line-height: 1.6;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    letter-spacing: 0.03em;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* CRT Scan Line Effect - only in dark mode */
+body[data-theme="dark"]::before,
+body:not([data-theme])::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        transparent 0%,
+        rgba(0, 0, 0, 0.05) 50%,
+        transparent 100%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.1;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    background-color: var(--navbar-bg) !important;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-dark .navbar-brand,
+.navbar-dark .nav-link,
+.nav-link {
+    color: var(--text-color) !important;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+}
+
+.navbar a:hover,
+.nav-link:hover {
+    color: var(--primary-color) !important;
+    text-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+}
+
+.nav-container {
+    background-color: transparent;
+    padding: 15px 0;
+    transition: padding 0.3s ease;
+}
+
+.nav-link {
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    transition: all 0.2s ease;
+    padding: 6px 15px;
+    text-decoration: none;
+    font-family: "Berkeley Mono", monospace;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.nav-link:hover {
+    border-color: var(--primary-color);
+    background-color: var(--hover-bg);
+    color: var(--primary-color);
+}
+
+footer {
+    margin-top: 3rem;
+    padding: 1.5rem 0;
+    background-color: transparent;
+    color: var(--text-color);
+    transition: color 0.3s ease;
+}
+
+/* Card styling */
+.card {
+    border-radius: 0;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    background-color: var(--card-bg);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+[data-theme="light"] .card {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+    background-color: var(--card-header-bg);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 0;
+    position: relative;
+    padding: 1rem 1.5rem;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.card-header::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    color: var(--primary-color);
+    opacity: 0.8;
+}
+
+.card-body {
+    background-color: var(--card-bg);
+    transition: background-color 0.3s ease;
+}
+
+/* Button styling */
+.btn {
+    border-radius: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: var(--btn-bg);
+    border-color: var(--btn-border);
+    color: var(--primary-color);
+}
+
+.btn-primary:hover, 
+.btn-primary:focus {
+    background-color: var(--hover-bg);
+    border-color: var(--primary-color);
+    color: var(--text-color);
+    box-shadow: 0 0 5px rgba(51, 255, 51, 0.4);
+}
+
+.btn-danger {
+    background-color: var(--btn-bg);
+    border-color: var(--btn-border);
+    color: var(--danger-color);
+}
+
+.btn-danger:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--danger-color);
+    box-shadow: 0 0 5px rgba(255, 85, 85, 0.4);
+}
+
+.btn-secondary, 
+.btn-outline-secondary,
+.btn-outline-primary {
+    background-color: var(--btn-bg);
+    border-color: var(--btn-border);
+    color: var(--muted-color);
+}
+
+.btn-secondary:hover,
+.btn-outline-secondary:hover,
+.btn-outline-primary:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--muted-color);
+    color: var(--text-color);
+}
+
+/* Theme Toggle Styles */
+.theme-toggle-container {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1000;
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+[data-theme="light"] .theme-toggle {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.theme-toggle:hover {
+    transform: rotate(30deg);
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .theme-toggle:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Theme Menu */
+.theme-menu {
+    position: absolute;
+    top: 45px;
+    right: 0;
+    width: 180px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    padding: 10px 0;
+    display: none;
+    z-index: 1001;
+}
+
+.theme-menu.show {
+    display: block;
+}
+
+.theme-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: 'Berkeley Mono', monospace;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    color: var(--text-color);
+    transition: background-color 0.2s ease;
+}
+
+.theme-menu-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.theme-menu-item i {
+    margin-right: 10px;
+    width: 16px;
+    text-align: center;
+}
+
+/* Form styling */
+.form-control {
+    background-color: var(--form-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    color: var(--text-color);
+    padding: 0.5rem;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-control:focus {
+    background-color: var(--form-bg);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(51, 255, 51, 0.15);
+    color: var(--text-color);
+}
+
+.form-select {
+    background-color: var(--form-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    color: var(--text-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.form-text {
+    color: var(--muted-color);
+    transition: color 0.3s ease;
+}
+
+/* Question list styling */
+.list-group-item {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    transition: all 0.2s ease;
+    border-radius: 0;
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace !important;
+}
+
+.list-group-item:hover {
+    background-color: var(--hover-bg);
+    border-left: 3px solid var(--primary-color);
+}
+
+.list-group-item-action {
+    color: var(--text-color);
+}
+
+.list-group-item-action:hover {
+    color: var(--text-color);
+}
+
+/* Results page styling */
+.chart-container {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    color: var(--text-color);
+}
+
+/* Chart visualization styling */
+.chart-container canvas {
+    background-color: transparent;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Terminal tooltips */
+.chartjs-tooltip {
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace !important;
+    font-size: 12px !important;
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 0 !important;
+    padding: 8px 12px !important;
+    color: var(--text-color) !important;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Link styling */
+a {
+    color: #00AAFF;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+a:hover {
+    color: #33FF33;
+    text-decoration: none;
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+    background-color: #2D2D2D;
+    border: 1px solid #444444;
+    padding: 0.5rem 1rem;
+    border-radius: 0;
+}
+
+.breadcrumb-item.active {
+    color: #AAAAAA;
+}
+
+/* Alert styling */
+.alert {
+    border-radius: 0;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.alert-info {
+    border-left: 4px solid #0088cc;
+}
+
+[data-theme="light"] .alert-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.alert-warning {
+    border-left: 4px solid #FFA500;
+}
+
+[data-theme="light"] .alert-warning {
+    border-left: 4px solid #ffc107;
+}
+
+.alert-danger {
+    border-left: 4px solid var(--danger-color);
+}
+
+.alert-success {
+    border-left: 4px solid var(--primary-color);
+}
+
+.text-muted {
+    color: var(--muted-color) !important;
+    transition: color 0.3s ease;
+}
+
+/* Data table styling */
+.data-table {
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace !important;
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+/* Raw response text in dark mode */
+.raw-response {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border-radius: 0;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    white-space: pre-wrap;
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace !important;
+}
+
+/* Modal styling for dark mode */
+.modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--card-header-bg);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--border-color);
+}
+
+/* Accordion styling */
+.accordion-button:not(.collapsed) {
+    background-color: var(--card-header-bg);
+    color: var(--text-color);
+    box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: var(--border-color);
+}
+
+.data-table th,
+.data-table td {
+    padding: 8px 12px;
+    border: 1px solid #444444;
+    text-align: left;
+}
+
+.data-table th {
+    background-color: #333333;
+}
+
+/* Progress bars */
+.progress {
+    background-color: #333333;
+    border-radius: 0;
+    height: 1.5rem;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background-color: #33FF33;
+    color: #1E1E1E;
+    font-weight: bold;
+}
+
+.progress-bar-striped {
+    background-image: linear-gradient(
+        45deg,
+        rgba(0, 0, 0, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(0, 0, 0, 0.15) 50%,
+        rgba(0, 0, 0, 0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+}
+
+/* Processing page styling */
+.loader-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 3rem 0;
+}
+
+/* Badge styling */
+.badge {
+    border-radius: 0;
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace;
+    padding: 0.3rem 0.5rem;
+}
+
+.badge.bg-primary {
+    background-color: #00AAFF !important;
+    color: #1E1E1E;
+}
+
+.badge.bg-success {
+    background-color: #33FF33 !important;
+    color: #1E1E1E;
+}
+
+.badge.bg-danger {
+    background-color: #FF5555 !important;
+    color: #1E1E1E;
+}
+
+.badge.bg-warning {
+    background-color: #FFA500 !important;
+    color: #1E1E1E;
+}
+
+/* Glowing Effect for Interactive Elements */
+.btn:active, a:active {
+    text-shadow: 0 0 10px currentColor;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chart-container {
+        height: 400px !important;
+        padding: 10px !important;
+    }
+    
+    .model-detail-popup {
+        width: 95%;
+        max-height: 80vh;
+    }
+    
+    /* Adjust control panel on small screens */
+    .control-group {
+        padding: 0 10px !important;
+        margin: 3px 0 !important;
+        border-right: none !important;
+        border-bottom: 1px solid #444444 !important;
+    }
+    
+    /* Make the buttons and text smaller on mobile */
+    .btn-sm {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem !important;
+        min-width: auto !important;
+    }
+    
+    /* Adjust layout for mobile */
+    #model-selector-container {
+        width: 100% !important;
+        padding: 0 10px !important;
+        margin-top: 8px !important;
+    }
+    
+    /* Smaller font sizes for chart elements */
+    .chart-js-tooltip {
+        font-size: 10px !important;
+    }
+}
+
+/* Tablet-sized screens */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .chart-container {
+        height: 450px !important;
+    }
+    
+    /* Adjust button sizes for tablets */
+    .btn-sm {
+        min-width: auto !important;
+    }
+}
+
+/* Tree visualization styling for dark mode */
+[data-theme="dark"] .node text,
+body:not([data-theme]) .node text {
+    fill: #DCDCDC;
+    stroke: none;
+    font-family: 'Berkeley Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 12px;
+    text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="dark"] .link,
+body:not([data-theme]) .link {
+    stroke: #888;
+    stroke-opacity: 0.8;
+}
+
+[data-theme="dark"] .node circle,
+body:not([data-theme]) .node circle {
+    stroke: #AAAAAA;
+    stroke-width: 2;
+}
+
+/* Override Bootstrap table color in dark mode */
+[data-theme="dark"] .table,
+body:not([data-theme]) .table {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-light,
+body:not([data-theme]) .table-light,
+[data-theme="dark"] .table-secondary,
+body:not([data-theme]) .table-secondary,
+[data-theme="dark"] .table-average,
+body:not([data-theme]) .table-average {
+    color: var(--text-color);
+    background-color: var(--card-header-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .table-dark,
+body:not([data-theme]) .table-dark {
+    background-color: #333333;
+    color: #f8f9fa;
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .table-dark {
+    background-color: #e9f0ff;
+    color: #333333;
+    border-color: #dae0e5;
+}
+
+.table-average {
+    background-color: rgba(0, 170, 255, 0.1);
+}
+
+[data-theme="light"] .table-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border-color: #bee5eb;
+}
+
+[data-theme="dark"] .table-bordered,
+body:not([data-theme]) .table-bordered {
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .table-bordered td,
+body:not([data-theme]) .table-bordered td,
+[data-theme="dark"] .table-bordered th,
+body:not([data-theme]) .table-bordered th {
+    border-color: var(--border-color);
+}
+
+/* Fix Bootstrap 5 color utility classes in dark mode */
+[data-theme="dark"] .bg-dark-subtle,
+body:not([data-theme]) .bg-dark-subtle {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .text-emphasis-dark,
+body:not([data-theme]) .text-emphasis-dark {
+    color: var(--text-color) !important;
+}

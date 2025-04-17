@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Model Preference Testing{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+        <div class="card mb-5">
+            <div class="card-header">
+                <h2 class="mb-0" style="font-family: 'Berkeley Mono', monospace;">README</h2>
+            </div>
+            <div class="card-body" style="font-family: 'Berkeley Mono', monospace;">
+                <p>This project examines how language models navigate multi-step decision-making scenarios, revealing potential biases and mode collapse tendencies.</p>
+                
+                <p><strong>The Experiment:</strong> We use a two-step decision tree where models are asked to:</p>
+                <ol>
+                    <li>Choose a travel destination (France, Japan, Brazil, Australia, or Italy)</li>
+                    <li>Then select an activity at that destination (Museum, National Park, Beach, Restaurant, or Nightclub)</li>
+                </ol>
+                
+                <p>This structure allows us to observe:</p>
+                <ul>
+                    <li>Which paths through the decision tree models prefer</li>
+                    <li>How consistently models choose the same options (mode collapse)</li>
+                    <li>How the first decision influences the second (preference cascades)</li>
+                </ul>
+                
+                <p>This work builds on research by davidad (color benchmarking), canaletto (LessWrong analyses), Cleo Nardo (simulators paper), and gwern (mode collapse).</p>
+                
+                <p><strong>What you can do:</strong></p>
+                <ul>
+                    <li><a href="{{ url_for('results_page') }}">Decision Trees</a> - Explore how models navigate multi-step decisions</li>
+                    <li><a href="{{ url_for('mode_collapse_page') }}">Model Consistency Analysis</a> - Compare how consistently different models make the same choices</li>
+                    <li><a href="{{ url_for('models_page') }}">Models</a> - View all tested models and access raw response data</li>
+                    <li><a href="{{ url_for('submit_form') }}">Test New Model</a> - Run the experiment on your own model (API keys are not stored)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
