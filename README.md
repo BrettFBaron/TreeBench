@@ -1,3 +1,6 @@
+# Access the Live site here: https://model-preference-tree-35348ec25424.herokuapp.com/
+
+
 # TreeBench
 
 TreeBench is a benchmark for measuring mode collapse in Large Language Models (LLMs) using a tree-structured decision framework. The system analyzes how consistently models make preference choices when presented with narrative scenarios, revealing patterns in their decision-making process.
